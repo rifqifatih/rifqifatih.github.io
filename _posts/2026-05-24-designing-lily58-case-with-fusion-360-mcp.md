@@ -1,8 +1,11 @@
 ---
 layout: post
 title:  "Designing a Custom Lily58 Keyboard Case with Fusion 360 MCP"
+description: "Designing a CNC aluminum Lily58 keyboard case entirely through Fusion 360's MCP server and Claude — SVG import pitfalls, architecture pivots, screw placement math, and lessons learned."
 date:   2026-05-24 12:00:00 +0700
 categories: design
+tags: [fusion-360, mcp, keyboard, lily58, cad, cnc]
+image: /assets/images/lily58/image-11.png
 ---
 
 *Notes on driving Fusion 360 with Claude through its MCP server, including the dead ends.*
@@ -33,7 +36,7 @@ The MCP server gave Claude three tools: `fusion_mcp_read` (queries), `fusion_mcp
 
 The reason to have 4 reference sketches is that at the time of testing, Claude was making guesses on what the Lily58 case would look like: 
 
-![alt text](/assets/images/lily58/MCP Testing.png)
+![Claude's zero-shot attempt at generating a Lily58 case without reference geometry](/assets/images/lily58/MCP Testing.png)
 
 Zero-shot CAD generation still has a long way to go.
 
@@ -126,7 +129,7 @@ None of this would have happened with a format that preserves exact coordinates.
 
 I parsed `Lily58_Pro_TOP.kicad_pcb` for switch positions, grouping `gr_line` entries into connected components and filtering to ~14×14 mm bounding boxes. Got **28 axis-aligned cutouts** plus **1 oddball with 19.125 × 19.124 mm bounding box** at the thumb cluster.
 
-![alt text](/assets/images/lily58/image.png)
+![Switch cutouts parsed from KiCad, showing 28 axis-aligned and 1 rotated thumb key](/assets/images/lily58/image.png)
 
 Agent initial conclusion: "That's the rotary encoder slot — 19 mm round cutout to accommodate the encoder OR a switch with a gap." Spent 30 minutes designing around a 19 mm encoder cutout.
 
@@ -146,18 +149,18 @@ The case went through three major architectural revisions:
 ### v1: Stock-style sandwich
 Two flat plates, open sides. My feedback after seeing it: *"the sandwich case is almost exactly like the stock plate which is the reason why this project started."*
 
-![alt text](/assets/images/lily58/image-1.png)
+![v1 stock-style sandwich case design](/assets/images/lily58/image-1.png)
 
 ### v2: Clamshell with walls
 Top + bottom plates each grew walls extending toward the middle, meeting at a seam. Geometric reality: **walls have to live somewhere, and they can't intrude into the PCB area**. So the entire case outline grew outward by `wall_thickness + pcb_clearance` = 3.5 mm relative to the PCB outline.
 
 Agent used `Sketch.offset()` to create the expanded outline. Result: mostly clean, but with **two wandering offset curves that went to Y=−287** because the 1 µm bridge lines Agent added earlier created degenerate geometry that the offset algorithm couldn't handle.
 
-![alt text](/assets/images/lily58/image-2.png)
+![Offset curves wandering to Y=-287 due to degenerate bridge geometry](/assets/images/lily58/image-2.png)
 
 Agent's manual fix: delete the bad curves, replace with a straight 35 mm chord across the thumb apex.
 
-![alt text](/assets/images/lily58/image-3.png)
+![Clamshell case after replacing bad curves with a straight chord](/assets/images/lily58/image-3.png)
 
 ### v3: Bezel with separate switch plate
 Then I asked: *"the cutout sits too high, the keycaps can't clear the plate to seat onto the switches."*
@@ -178,7 +181,7 @@ PCB                <- 1.6 mm, with hot-swap sockets
 BOTTOM CASE TUB    <- 3 mm Al, base + 8.6 mm walls
 ```
 
-![alt text](/assets/images/lily58/image-4.png)
+![Final bezel and tub sandwich architecture with separate switch plate](/assets/images/lily58/image-4.png)
 
 ---
 
@@ -196,7 +199,7 @@ offset_apex_distance = 3.5 / sin(45°) = 4.95 mm beyond original apex
 
 Agent computed the new apex position by intersecting the two extended offset diagonals, then replaced the chord with a 2-segment V. Ring thickness became uniform again.
 
-![alt text](/assets/images/lily58/image-5.png)
+![Bezel with uniform ring thickness after fixing the chord with a 2-segment V](/assets/images/lily58/image-5.png)
 
 ---
 
@@ -213,7 +216,7 @@ Result:
 - Magnet pocket cuts cut only the wall (where material existed), creating half-circles
 - Alignment pins floated in mid-air, disconnected from the bezel
 
-![alt text](/assets/images/lily58/image-6.png)
+![Failed magnet bosses extruded as disconnected bodies](/assets/images/lily58/image-6.png)
 
 **Root cause**: `JOIN` operation in Fusion needs **volume overlap**, not just a shared face. My boss profiles were placed entirely *inside* the PCB-outline area, with the wall entirely *outside* — they only touched on a 2D line. Fusion treated them as separate disconnected solids.
 
@@ -227,7 +230,7 @@ Agent deleted all 6 features, 4 sketches, 8 parameters.
 
 M2 SHCS with 3.5 mm head, 3.5 mm wall thickness. Math: zero clearance, head exactly fills wall. Counterbore "destroying the side face."
 
-![alt text](/assets/images/lily58/image-7.png)
+![Top-down edge screws with counterbore destroying the side face](/assets/images/lily58/image-7.png)
 
 ### Attempt 3: Bottom-up edge screws (failed differently)
 
@@ -237,7 +240,7 @@ Putting the head in the tub *base* (a wide flat plate) drops the wall-thickness 
 
 Agent placed screws at the wall's centerline. But the 4 mm counterbore is wider than the 3.5 mm wall it sits over, so it overhung the outer edge by roughly a quarter millimeter. Side face still destroyed.
 
-![alt text](/assets/images/lily58/image-8.png)
+![Bottom-up screws with counterbore overhanging the outer wall edge](/assets/images/lily58/image-8.png)
 
 ### Attempt 4: Move screws inward, with constraint math
 
@@ -249,7 +252,7 @@ For a 3.5 mm wall sitting between a sharp outer edge and the PCB pocket, those t
 
 ### Why S3 failed
 
-![alt text](/assets/images/lily58/image-9.png)
+![Screw S3 counterbore cutting through the curved left edge](/assets/images/lily58/image-9.png)
 
 The math said S3 had the same clearance as every other edge screw. Probing the actual outline at S3's location said otherwise — the case edge there sat roughly a millimeter and a half further out than the math assumed, and the counterbore cut straight through it.
 
@@ -258,7 +261,7 @@ Why? The PCB's left edge isn't a straight vertical line. It bends inward partway
 Fix: Agent probed the full left edge, found the section where the offset really did hold straight, and moved S3 into the middle of that section.
 
 
-![alt text](/assets/images/lily58/image-10.png)
+![All four edge screws correctly placed after S3 relocation](/assets/images/lily58/image-10.png)
 
 ---
 
@@ -278,7 +281,7 @@ Agent built the entire design calling it "the left half" for ~30 prompts. When i
 
 I was right. Agent certainly assumed that thumb cluster on the **left** means it's the **left** half (???).
 
-![alt text](/assets/images/lily58/image-11.png)
+![Mirrored left and right halves of the Lily58 case](/assets/images/lily58/image-11.png)
 
 ---
 
