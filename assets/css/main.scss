@@ -6,3 +6,24 @@
 body {
   font-family: 'Lora', serif;
 }
+
+code {
+  background-color: #f5f5f5;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+pre {
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+
+  code {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+  }
+}
